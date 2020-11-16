@@ -1,0 +1,87 @@
+import re
+import pandas as pd
+
+
+def get_score_diff(x):
+    x = x['Result']
+    final_east_score = 0
+    final_west_score = 0
+    east_score = re.search('(East )(\\d+)', x)
+    if east_score:
+        final_east_score = east_score.group(2)
+    west_score = re.search('(West )(\\d+)', x)
+    if west_score:
+        final_west_score = west_score.group(2)
+    return abs(float(final_east_score) - float(final_west_score))
+
+
+def get_score(x, team_name):
+    final_score = 0
+    if 'East' == team_name:
+        east_score = re.search('(East )(\\d+)', x)
+        if east_score:
+            final_score = east_score.group(2)
+    else:
+        west_score = re.search('(West )(\\d+)', x)
+        if west_score:
+            final_score = west_score.group(2)
+    return float(final_score)
+
+
+def get_city_name(x):
+    city_name = x
+    index_character = x.find(',')
+    if index_character > 0:
+        city_name = x[:index_character]
+    return city_name.lstrip().rstrip()
+
+
+def read_external_data_diff_report():
+    df_array = pd.read_html('https://en.wikipedia.org/wiki/NBA_All-Star_Game')
+    df_scores = df_array[2]
+    df_scores = df_scores[['Year', 'Result', 'Host city']]
+    print(df_scores.columns)
+    df_scores['Difference'] = df_scores.apply(lambda x: get_score_diff(x), axis=1)
+    print(df_scores)
+    df_scores = df_scores[df_scores['Difference'] > 0]
+    df_final = df_scores['Difference'].value_counts()
+    print('\nDiff')
+    print(df_final)
+
+
+def read_external_data_city_report():
+    df_array = pd.read_html('https://en.wikipedia.org/wiki/NBA_All-Star_Game')
+    df_scores = df_array[2]
+    df_scores = df_scores[['Year', 'Result', 'Host city']]
+    print(df_scores.columns)
+    df_scores['East Score'] = df_scores.apply(lambda x: get_score(x['Result'], 'East'), axis=1)
+    df_scores['West Score'] = df_scores.apply(lambda x: get_score(x['Result'], 'West'), axis=1)
+    df_scores['Host city'] = df_scores.apply(lambda x: get_city_name(x['Host city']), axis=1)
+    df_scores = df_scores[['Host city', 'East Score', 'West Score']]
+    df_scores = df_scores[(df_scores['East Score'] > 0) & (df_scores['West Score'] > 0)]
+    print(df_scores)
+    import numpy as np
+    df_scores['Count'] = 0
+    df_scores = df_scores.groupby(['Host city']).agg({
+        'East Score': 'mean',
+        'West Score': 'mean',
+        'Count': 'count'
+    })
+    df_scores = df_scores[df_scores['Count'] > 1]
+    print(df_scores)
+    df_scores['Diff'] = df_scores.apply(lambda x: get_diff(x), axis=1)
+    print(df_scores.sort_values(by=['Count'], ascending=True))
+
+
+def get_diff(x):
+    return abs(float(x['East Score']) - float(x['West Score']))
+
+
+def manipulate_data():
+    # read the data from external source
+    # read_external_data_diff_report()
+
+    # read the data from external source and group by number of times a game was hosted
+    read_external_data_city_report()
+
+manipulate_data()
